@@ -11,8 +11,8 @@ class: center, bottom, inverse
 
 .right-column[
   ### Erlang Manual
-  Programmers are strongly advised not to engage in parse transforms
-  and no support is offered for problems encountered.
+  .highlighted[ Programmers are strongly advised not to engage in parse transforms
+  and no support is offered for problems encountered.]
 ]
 ---
 ## Our journey
@@ -110,22 +110,51 @@ module.beam
 .float-right[
 ![Aho](img/aho.jpg)
 ]
+
 ---
 # Classic compilation steps
 1. Expand macros
 2. Lex
 3. Parse
-4. .highlighted[ Abstract syntax tree ]
-5. Optimize
-6. Generate bytecode
----
-# Abstract Syntax
+4. Abstract syntax tree
+5. &rarr; Transformed syntax tree = `your_function(AST)`
+6. Optimize
+7. Generate bytecode
 
-## Identity transform
+---
+# Identity transform
 
 ```erlang
-parse_transform(AbstractSyntaxTree, Options) ->
-  AbstractSyntaxTree.
+-module(my_transform).
+
+-export([parse_transform/2]).
+
+parse_transform(Forms, Options) ->
+  Forms.
+```
+
+---
+## Invoke a parse transform
+### erlc
+```sh
+erlc my_transform.erl
+erlc -pa . +"{parse_transform,my_transform}" module.erl
+```
+
+### rebar.config
+```erlang
+{erl_opts, [
+            {parse_transform, my_transform}
+           ]}.
+```
+
+### module inline
+```erlang
+-module(some_module).
+
+-compile([{parse_transform, my_transform}]).
+
+...
 ```
 ---
 class: center, middle, inverse
@@ -133,7 +162,275 @@ class: center, middle, inverse
 # Abstract Format
 ## Your program as data
 ---
+```erlang
+-module(module).
 
+-compile([{parse_transform, my_transform}]).
+
+-export([hello/1]).
+
+hello(Who) ->
+    io:fwrite("hello ~p", [Who]).
+```
+
+```erlang
+[{attribute,1,file,{"module.erl",1}},
+ {attribute,1,module,module},
+ {attribute,3,compile,[]},
+ {attribute,5,export,[{hello,1}]},
+ {function,7,hello,1,
+           [{clause,7,
+                    [{var,7,'Who'}],
+                    [],
+                    [{call,8,
+                           {remote,8,{atom,8,io},{atom,8,fwrite}},
+                           [{string,8,"hello ~p"},
+                            {cons,8,{var,8,'Who'},{nil,8}}]}]}]},
+ {eof,10}]
+```
+---
+```erlang
+*-module(module).
+
+-compile([{parse_transform, my_transform}]).
+
+-export([hello/1]).
+
+hello(Who) ->
+    io:fwrite("hello ~p", [Who]).
+```
+
+```erlang
+[{attribute,1,file,{"module.erl",1}},
+* {attribute,1,module,module},
+ {attribute,3,compile,[]},
+ {attribute,5,export,[{hello,1}]},
+ {function,7,hello,1,
+           [{clause,7,
+                    [{var,7,'Who'}],
+                    [],
+                    [{call,8,
+                           {remote,8,{atom,8,io},{atom,8,fwrite}},
+                           [{string,8,"hello ~p"},
+                            {cons,8,{var,8,'Who'},{nil,8}}]}]}]},
+ {eof,10}]
+```
+---
+```erlang
+-module(module).
+
+*-compile([{parse_transform, my_transform}]).
+
+-export([hello/1]).
+
+hello(Who) ->
+    io:fwrite("hello ~p", [Who]).
+```
+
+```erlang
+[{attribute,1,file,{"module.erl",1}},
+ {attribute,1,module,module},
+* {attribute,3,compile,[]},
+ {attribute,5,export,[{hello,1}]},
+ {function,7,hello,1,
+           [{clause,7,
+                    [{var,7,'Who'}],
+                    [],
+                    [{call,8,
+                           {remote,8,{atom,8,io},{atom,8,fwrite}},
+                           [{string,8,"hello ~p"},
+                            {cons,8,{var,8,'Who'},{nil,8}}]}]}]},
+ {eof,10}]
+```
+---
+```erlang
+-module(module).
+
+-compile([{parse_transform, my_transform}]).
+
+*-export([hello/1]).
+
+hello(Who) ->
+    io:fwrite("hello ~p", [Who]).
+```
+
+```erlang
+[{attribute,1,file,{"module.erl",1}},
+ {attribute,1,module,module},
+ {attribute,3,compile,[]},
+* {attribute,5,export,[{hello,1}]},
+ {function,7,hello,1,
+           [{clause,7,
+                    [{var,7,'Who'}],
+                    [],
+                    [{call,8,
+                           {remote,8,{atom,8,io},{atom,8,fwrite}},
+                           [{string,8,"hello ~p"},
+                            {cons,8,{var,8,'Who'},{nil,8}}]}]}]},
+ {eof,10}]
+```
+---
+```erlang
+-module(module).
+
+-compile([{parse_transform, my_transform}]).
+
+-export([hello/1]).
+
+*hello(Who) ->
+    io:fwrite("hello ~p", [Who]).
+```
+
+```erlang
+[{attribute,1,file,{"module.erl",1}},
+ {attribute,1,module,module},
+ {attribute,3,compile,[]},
+ {attribute,5,export,[{hello,1}]},
+* {function,7,hello,1,
+*           [{clause,7,
+*                    [{var,7,'Who'}],
+*                    [],
+                    [{call,8,
+                           {remote,8,{atom,8,io},{atom,8,fwrite}},
+                           [{string,8,"hello ~p"},
+                            {cons,8,{var,8,'Who'},{nil,8}}]}]}]},
+ {eof,10}]
+```
+---
+```erlang
+-module(module).
+
+-compile([{parse_transform, my_transform}]).
+
+-export([hello/1]).
+
+ `hello`(`Who`) ->
+    io:fwrite("hello ~p", [Who]).
+```
+
+```erlang
+[{attribute,1,file,{"module.erl",1}},
+ {attribute,1,module,module},
+ {attribute,3,compile,[]},
+ {attribute,5,export,[{hello,1}]},
+ {function,7,`hello`,1,
+           [{clause,7,
+                    [{var,7,'`Who`'}],
+                    [],
+                    [{call,8,
+                           {remote,8,{atom,8,io},{atom,8,fwrite}},
+                           [{string,8,"hello ~p"},
+                            {cons,8,{var,8,'Who'},{nil,8}}]}]}]},
+ {eof,10}]
+```
+---
+```erlang
+-module(module).
+
+-compile([{parse_transform, my_transform}]).
+
+-export([hello/1]).
+
+hello(Who) ->
+    io:fwrite("hello ~p", [Who]).
+```
+
+```erlang
+[{attribute,1,file,{"module.erl",1}},
+ {attribute,1,module,module},
+ {attribute,3,compile,[]},
+ {attribute,5,export,[{hello,1}]},
+ {function,7,hello,1,
+           [{clause,7,
+                    [{var,7,'Who'}],
+*                    [],
+                    [{call,8,
+                           {remote,8,{atom,8,io},{atom,8,fwrite}},
+                           [{string,8,"hello ~p"},
+                            {cons,8,{var,8,'Who'},{nil,8}}]}]}]},
+ {eof,10}]
+```
+---
+```erlang
+-module(module).
+
+-compile([{parse_transform, my_transform}]).
+
+-export([hello/1]).
+
+hello(Who) ->
+*    io:fwrite("hello ~p", [Who]).
+```
+
+```erlang
+[{attribute,1,file,{"module.erl",1}},
+ {attribute,1,module,module},
+ {attribute,3,compile,[]},
+ {attribute,5,export,[{hello,1}]},
+ {function,7,hello,1,
+           [{clause,7,
+                    [{var,7,'Who'}],
+                    [],
+*                    [{call,8,
+*                           {remote,8,{atom,8,io},{atom,8,fwrite}},
+*                           [{string,8,"hello ~p"},
+*                            {cons,8,{var,8,'Who'},{nil,8}}]}]}]},
+ {eof,10}]
+```
+---
+```erlang
+-module(module).
+
+-compile([{parse_transform, my_transform}]).
+
+-export([hello/1]).
+
+hello(Who) ->
+    `io`:`fwrite`("hello ~p", [Who]).
+```
+
+```erlang
+[{attribute,1,file,{"module.erl",1}},
+ {attribute,1,module,module},
+ {attribute,3,compile,[]},
+ {attribute,5,export,[{hello,1}]},
+ {function,7,hello,1,
+           [{clause,7,
+                    [{var,7,'Who'}],
+                    [],
+                    [{call,8,
+                           {remote,8,{atom,8,`io`},{atom,8,`fwrite`}},
+                           [{string,8,"hello ~p"},
+                            {cons,8,{var,8,'Who'},{nil,8}}]}]}]},
+ {eof,10}]
+```
+---
+```erlang
+-module(module).
+
+-compile([{parse_transform, my_transform}]).
+
+-export([hello/1]).
+
+hello(Who) ->
+    io:fwrite(`"hello ~p", [Who]`).
+```
+
+```erlang
+[{attribute,1,file,{"module.erl",1}},
+ {attribute,1,module,module},
+ {attribute,3,compile,[]},
+ {attribute,5,export,[{hello,1}]},
+ {function,7,hello,1,
+           [{clause,7,
+                    [{var,7,'Who'}],
+                    [],
+                    [{call,8,
+                           {remote,8,{atom,8,io},{atom,8,fwrite}},
+                           `[{string,8,"hello ~p"},`
+                            `{cons,8,{var,8,'Who'},{nil,8}}]`}]}]},
+ {eof,10}]
+```
 ---
 # Thanks
 

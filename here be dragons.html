@@ -143,7 +143,7 @@ code {
 }
 
 .highlighted {
-  background-color: lightgray;
+  border: 2px outset gray;
 }
 
 .float-left {
@@ -167,7 +167,13 @@ code {
   <body>
     <script src="remark-latest.min.js"></script>
     <script>
-      var slideshow = remark.create({sourceUrl: 'here be dragons.md'});
+      var slideshow = remark.create(
+          {sourceUrl: 'here be dragons.md',
+           highlightStyle: 'tomorrow-night',
+           highlightLines: true,
+           highlightSpans: true
+          }
+          );
     </script>
   </body>
 </html>

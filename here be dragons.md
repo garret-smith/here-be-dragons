@@ -10,9 +10,12 @@ class: center, bottom, inverse
 ]
 
 .right-column[
-  ### Erlang Manual
-  .highlighted[ Programmers are strongly advised not to engage in parse transforms
-  and no support is offered for problems encountered.]
+  ## Erlang Manual:
+
+  .boxed[
+    Programmers are strongly advised not to engage in parse transforms
+    and no support is offered for problems encountered.
+  ]
 ]
 ---
 ## Our journey
@@ -80,9 +83,7 @@ Executable
 ]
 
 .float-right[
-```
-module.erl
-```
+`module.erl`
 
 &darr;
 
@@ -92,9 +93,7 @@ module.erl
 
 &darr;
 
-```
-module.beam
-```
+`module.beam`
 ]
 
 ---
@@ -117,7 +116,7 @@ module.beam
 2. Lex
 3. Parse
 4. Abstract syntax tree
-5. &rarr; Transformed syntax tree = `your_function(AST)`
+5. .highlighted[&rarr;] &nbsp; Transformed syntax tree = `your_function(AST)` &nbsp; .highlighted[&larr;]
 6. Optimize
 7. Generate bytecode
 
@@ -134,23 +133,23 @@ parse_transform(Forms, Options) ->
 ```
 
 ---
-## Invoke a parse transform
-### erlc
+# Invoke a parse transform
+erlc
 ```sh
 erlc my_transform.erl
-erlc -pa . +"{parse_transform,my_transform}" module.erl
+erlc -pa . +"{parse_transform,my_transform}" test.erl
 ```
 
-### rebar.config
+rebar.config
 ```erlang
 {erl_opts, [
             {parse_transform, my_transform}
            ]}.
 ```
 
-### module inline
+module inline
 ```erlang
--module(some_module).
+-module(test).
 
 -compile([{parse_transform, my_transform}]).
 
@@ -163,7 +162,7 @@ class: center, middle, inverse
 ## Your program as data
 ---
 ```erlang
--module(module).
+-module(test).
 
 -compile([{parse_transform, my_transform}]).
 
@@ -174,8 +173,8 @@ hello(Who) ->
 ```
 
 ```erlang
-[{attribute,1,file,{"module.erl",1}},
- {attribute,1,module,module},
+[{attribute,1,file,{"test.erl",1}},
+ {attribute,1,module,test},
  {attribute,3,compile,[]},
  {attribute,5,export,[{hello,1}]},
  {function,7,hello,1,
@@ -190,7 +189,7 @@ hello(Who) ->
 ```
 ---
 ```erlang
-*-module(module).
+*-module(test).
 
 -compile([{parse_transform, my_transform}]).
 
@@ -201,8 +200,8 @@ hello(Who) ->
 ```
 
 ```erlang
-[{attribute,1,file,{"module.erl",1}},
-* {attribute,1,module,module},
+[{attribute,1,file,{"test.erl",1}},
+* {attribute,1,module,test},
  {attribute,3,compile,[]},
  {attribute,5,export,[{hello,1}]},
  {function,7,hello,1,
@@ -217,7 +216,7 @@ hello(Who) ->
 ```
 ---
 ```erlang
--module(module).
+-module(test).
 
 *-compile([{parse_transform, my_transform}]).
 
@@ -228,8 +227,8 @@ hello(Who) ->
 ```
 
 ```erlang
-[{attribute,1,file,{"module.erl",1}},
- {attribute,1,module,module},
+[{attribute,1,file,{"test.erl",1}},
+ {attribute,1,module,test},
 * {attribute,3,compile,[]},
  {attribute,5,export,[{hello,1}]},
  {function,7,hello,1,
@@ -244,7 +243,7 @@ hello(Who) ->
 ```
 ---
 ```erlang
--module(module).
+-module(test).
 
 -compile([{parse_transform, my_transform}]).
 
@@ -255,8 +254,8 @@ hello(Who) ->
 ```
 
 ```erlang
-[{attribute,1,file,{"module.erl",1}},
- {attribute,1,module,module},
+[{attribute,1,file,{"test.erl",1}},
+ {attribute,1,module,test},
  {attribute,3,compile,[]},
 * {attribute,5,export,[{hello,1}]},
  {function,7,hello,1,
@@ -271,7 +270,7 @@ hello(Who) ->
 ```
 ---
 ```erlang
--module(module).
+-module(test).
 
 -compile([{parse_transform, my_transform}]).
 
@@ -282,8 +281,8 @@ hello(Who) ->
 ```
 
 ```erlang
-[{attribute,1,file,{"module.erl",1}},
- {attribute,1,module,module},
+[{attribute,1,file,{"test.erl",1}},
+ {attribute,1,module,test},
  {attribute,3,compile,[]},
  {attribute,5,export,[{hello,1}]},
 * {function,7,hello,1,
@@ -298,7 +297,7 @@ hello(Who) ->
 ```
 ---
 ```erlang
--module(module).
+-module(test).
 
 -compile([{parse_transform, my_transform}]).
 
@@ -309,8 +308,8 @@ hello(Who) ->
 ```
 
 ```erlang
-[{attribute,1,file,{"module.erl",1}},
- {attribute,1,module,module},
+[{attribute,1,file,{"test.erl",1}},
+ {attribute,1,module,test},
  {attribute,3,compile,[]},
  {attribute,5,export,[{hello,1}]},
  {function,7,`hello`,1,
@@ -325,25 +324,25 @@ hello(Who) ->
 ```
 ---
 ```erlang
--module(module).
+-module(test).
 
 -compile([{parse_transform, my_transform}]).
 
 -export([hello/1]).
 
-hello(Who) ->
+hello(Who)` `->
     io:fwrite("hello ~p", [Who]).
 ```
 
 ```erlang
-[{attribute,1,file,{"module.erl",1}},
- {attribute,1,module,module},
+[{attribute,1,file,{"test.erl",1}},
+ {attribute,1,module,test},
  {attribute,3,compile,[]},
  {attribute,5,export,[{hello,1}]},
  {function,7,hello,1,
            [{clause,7,
                     [{var,7,'Who'}],
-*                    [],
+*                    `[]`,
                     [{call,8,
                            {remote,8,{atom,8,io},{atom,8,fwrite}},
                            [{string,8,"hello ~p"},
@@ -352,7 +351,7 @@ hello(Who) ->
 ```
 ---
 ```erlang
--module(module).
+-module(test).
 
 -compile([{parse_transform, my_transform}]).
 
@@ -363,8 +362,8 @@ hello(Who) ->
 ```
 
 ```erlang
-[{attribute,1,file,{"module.erl",1}},
- {attribute,1,module,module},
+[{attribute,1,file,{"test.erl",1}},
+ {attribute,1,module,test},
  {attribute,3,compile,[]},
  {attribute,5,export,[{hello,1}]},
  {function,7,hello,1,
@@ -379,7 +378,7 @@ hello(Who) ->
 ```
 ---
 ```erlang
--module(module).
+-module(test).
 
 -compile([{parse_transform, my_transform}]).
 
@@ -390,8 +389,8 @@ hello(Who) ->
 ```
 
 ```erlang
-[{attribute,1,file,{"module.erl",1}},
- {attribute,1,module,module},
+[{attribute,1,file,{"test.erl",1}},
+ {attribute,1,module,test},
  {attribute,3,compile,[]},
  {attribute,5,export,[{hello,1}]},
  {function,7,hello,1,
@@ -406,7 +405,7 @@ hello(Who) ->
 ```
 ---
 ```erlang
--module(module).
+-module(test).
 
 -compile([{parse_transform, my_transform}]).
 
@@ -417,8 +416,8 @@ hello(Who) ->
 ```
 
 ```erlang
-[{attribute,1,file,{"module.erl",1}},
- {attribute,1,module,module},
+[{attribute,1,file,{"test.erl",1}},
+ {attribute,1,module,test},
  {attribute,3,compile,[]},
  {attribute,5,export,[{hello,1}]},
  {function,7,hello,1,
@@ -431,6 +430,56 @@ hello(Who) ->
                             `{cons,8,{var,8,'Who'},{nil,8}}]`}]}]},
  {eof,10}]
 ```
+---
+class: middle, center, inverse
+# Working with Abstract Format
+## Bring your sword to the dragon fight
+---
+.left-column[
+  ### Find something
+]
+.right-column[
+```erlang
+count_ys(Terms) ->
+  lists:foldl(fun(T, A) ->
+                case T of
+                  x -> A;
+                  y -> A+1
+                end
+              end,
+              0,
+              Terms).
+
+```
+]
+---
+.left-column[
+  ### Find something
+  ### Alter it
+]
+.right-column[
+### Or add something before / after
+]
+---
+.left-column[
+  ### Find something
+  ### Alter it
+  ### Add something
+]
+.right-column[
+]
+---
+.left-column[
+  ### Find something
+  ### Alter it
+  ### Add something
+  ### Update the AST
+]
+.right-column[
+]
+---
+---
+# exprecs
 ---
 # Thanks
 

@@ -47,8 +47,15 @@ code {
   background: #e7e8e2;
   border-radius: 5px;
 }
-.remark-code, .remark-inline-code { font-family: 'Source Code Pro'; }
-.remark-code-line-highlighted     { background-color: #373832; }
+.remark-code {
+  font-family: 'Source Code Pro';
+  font-size: 16px;
+  border-left: 0.3em solid #d7d7d7;
+}
+.remark-inline-code { font-family: 'Source Code Pro'; }
+.remark-code-line-highlighted {
+  background-color: #c7d7d7;
+}
 .pull-left {
   float: left;
   width: 47%;
@@ -142,8 +149,16 @@ code {
   font-family: 'Serif';
 }
 
+.boxed {
+  margin: 2em;
+  padding: 1em;
+  border: 2px dotted green;
+}
+
 .highlighted {
-  border: 2px outset gray;
+  padding-left: 4px;
+  padding-right: 4px;
+  background: lightgreen;
 }
 
 .float-left {
@@ -162,6 +177,7 @@ code {
   list-style-type: none;
   margin: 1em;
 }
+
     </style>
   </head>
   <body>
@@ -169,7 +185,7 @@ code {
     <script>
       var slideshow = remark.create(
           {sourceUrl: 'here be dragons.md',
-           highlightStyle: 'tomorrow-night',
+           highlightStyle: 'tomorrow',
            highlightLines: true,
            highlightSpans: true
           }

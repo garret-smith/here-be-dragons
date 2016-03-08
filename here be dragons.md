@@ -161,6 +161,39 @@ class: center, middle, inverse
 # Abstract Format
 ## Your program as data
 ---
+# Abstract Syntax Tree
+
+.pull-left[
+### A + B * C
+![graphs/a_bc.png](graphs/a_bc.png)
+]
+--
+.pull-right[
+### (A + B) * C
+![graphs/ab_c.png](graphs/ab_c.png)
+]
+---
+# Abstract Syntax Tree
+
+.pull-left[
+### A + B * C
+![graphs/a_bc.png](graphs/a_bc.png)
+```erlang
+{'+',
+  A,
+  {'*', B, C}}
+```
+]
+.pull-right[
+### (A + B) * C
+![graphs/ab_c.png](graphs/ab_c.png)
+```erlang
+{'*',
+  {'+', A, B},
+  C}
+```
+]
+---
 ```erlang
 -module(test).
 
@@ -303,7 +336,7 @@ hello(Who) ->
 
 -export([hello/1]).
 
- `hello`(`Who`) ->
+* `hello`(`Who`) ->
     io:fwrite("hello ~p", [Who]).
 ```
 
@@ -312,10 +345,10 @@ hello(Who) ->
  {attribute,1,module,test},
  {attribute,3,compile,[]},
  {attribute,5,export,[{hello,1}]},
- {function,7,`hello`,1,
-           [{clause,7,
-                    [{var,7,'`Who`'}],
-                    [],
+* {function,7,`hello`,1,
+*           [{clause,7,
+*                    [{var,7,'`Who`'}],
+*                    [],
                     [{call,8,
                            {remote,8,{atom,8,io},{atom,8,fwrite}},
                            [{string,8,"hello ~p"},
@@ -330,7 +363,7 @@ hello(Who) ->
 
 -export([hello/1]).
 
-hello(Who)` `->
+*hello(Who)` `->
     io:fwrite("hello ~p", [Who]).
 ```
 
@@ -342,7 +375,7 @@ hello(Who)` `->
  {function,7,hello,1,
            [{clause,7,
                     [{var,7,'Who'}],
-*                    `[]`,
+*                   `[]`,
                     [{call,8,
                            {remote,8,{atom,8,io},{atom,8,fwrite}},
                            [{string,8,"hello ~p"},
@@ -358,7 +391,7 @@ hello(Who)` `->
 -export([hello/1]).
 
 hello(Who) ->
-*    io:fwrite("hello ~p", [Who]).
+*   io:fwrite("hello ~p", [Who]).
 ```
 
 ```erlang
@@ -370,10 +403,10 @@ hello(Who) ->
            [{clause,7,
                     [{var,7,'Who'}],
                     [],
-*                    [{call,8,
-*                           {remote,8,{atom,8,io},{atom,8,fwrite}},
-*                           [{string,8,"hello ~p"},
-*                            {cons,8,{var,8,'Who'},{nil,8}}]}]}]},
+*                   [{call,8,
+*                          {remote,8,{atom,8,io},{atom,8,fwrite}},
+*                          [{string,8,"hello ~p"},
+*                           {cons,8,{var,8,'Who'},{nil,8}}]}]}]},
  {eof,10}]
 ```
 ---
@@ -385,7 +418,7 @@ hello(Who) ->
 -export([hello/1]).
 
 hello(Who) ->
-    `io`:`fwrite`("hello ~p", [Who]).
+*   `io`:`fwrite`("hello ~p", [Who]).
 ```
 
 ```erlang
@@ -397,10 +430,10 @@ hello(Who) ->
            [{clause,7,
                     [{var,7,'Who'}],
                     [],
-                    [{call,8,
-                           {remote,8,{atom,8,`io`},{atom,8,`fwrite`}},
-                           [{string,8,"hello ~p"},
-                            {cons,8,{var,8,'Who'},{nil,8}}]}]}]},
+*                   [{call,8,
+*                          {remote,8,{atom,8,`io`},{atom,8,`fwrite`}},
+*                          [{string,8,"hello ~p"},
+*                           {cons,8,{var,8,'Who'},{nil,8}}]}]}]},
  {eof,10}]
 ```
 ---
@@ -432,8 +465,8 @@ hello(Who) ->
 ```
 ---
 class: middle, center, inverse
-# Working with Abstract Format
-## Bring your sword to the dragon fight
+# Setting Sail
+## Transform some parse trees!
 ---
 # Hypothetical application
 
@@ -443,13 +476,17 @@ tracker process with the ETS method used: select / insert / update / delete.
 The tracker process could then accumulate number of calls / time.  You could
 begin to get an idea of what processes are using this table and how often.
 
+--
 ## Problem
 
 - Find: `ets:insert(contentious_table, Objects)`
 
+--
 - Insert: `ets_collector ! {insert, self()}`
 
+--
 - Bonus: `ets_collector ! {insert, length(Objects), self()}`
+
 ---
 ### What does that look like in AF???
 
@@ -465,25 +502,30 @@ begin to get an idea of what processes are using this table and how often.
        [{atom,1,contentious_table},{var,1,'Objects'}]}]
 ```
 
+--
 OK, match on
 ```erlang
 {call, _,
  {remote, _, {atom, _, `ets`}, {atom, _, `insert`}},
- [{atom, _, `contentious_table`},
-  {var, _, `'Objects'`}]}
+ [{atom, _, `contentious_table`}, {var, _, `'Objects'`}]}
 ```
+
+???
+Just make sure not to match on `Objects` since the variable name might be
+different.
+
 ---
 ### ... and insert ...
 
 ```erlang
 1> {ok, Tokens, _} =
-       erl_scan:string("collector ! {insert, self()}.").
+       erl_scan:string("ets_collector ! {insert, self()}.").
 
 2> {ok, Forms} = erl_parse:parse_exprs(Tokens).
 
 3> Forms.
 [{op,1,'!',
-     {atom,1,collector},
+     {atom,1,ets_collector},
      {tuple,1,[{atom,1,insert},{call,1,{atom,1,self},[]}]}}]
 ```
 ---
@@ -496,7 +538,7 @@ transform_ets_insert({call, Line,
                          {var, _, Objects}]}
                      = Form) ->
     {op,Line,'!',
-      {atom,Line,collector},
+      {atom,Line,ets_collector},
       {tuple,Line,[{atom,Line,insert},
                    {call,Line,{atom,Line,self},[]}]}};
 transform_ets_insert(Form) ->
@@ -520,6 +562,10 @@ class: middle, center, inverse
 4. Update the AST
 
 5. Return the new AST to the compiler
+---
+class: middle, center, inverse
+# Working with Abstract Format
+## Bring your sword to the dragon fight
 ---
 ---
 # exprecs

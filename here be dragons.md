@@ -435,51 +435,105 @@ class: middle, center, inverse
 # Working with Abstract Format
 ## Bring your sword to the dragon fight
 ---
-.left-column[
-  ### Find something
-]
-.right-column[
+# Hypothetical application
+
+Whenever the ETS table `contentious_table` is accessed, fire off a message to a
+tracker process with the ETS method used: select / insert / update / delete.
+
+The tracker process could then accumulate number of calls / time.  You could
+begin to get an idea of what processes are using this table and how often.
+
+## Problem
+
+- Find: `ets:insert(contentious_table, Objects)`
+
+- Insert: `ets_collector ! {insert, self()}`
+
+- Bonus: `ets_collector ! {insert, length(Objects), self()}`
+---
+### What does that look like in AF???
+
 ```erlang
-count_ys(Terms) ->
-  lists:foldl(fun(T, A) ->
-                case T of
-                  x -> A;
-                  y -> A+1
-                end
-              end,
-              0,
-              Terms).
+1> {ok, Tokens, _} =
+       erl_scan:string("ets:insert(contentious_table, Objects).").
+
+2> {ok, Forms} = erl_parse:parse_exprs(Tokens).
+
+3> Forms.
+[{call,1,
+       {remote,1,{atom,1,ets},{atom,1,insert}},
+       [{atom,1,contentious_table},{var,1,'Objects'}]}]
+```
+
+OK, match on
+```erlang
+{call, _,
+ {remote, _, {atom, _, `ets`}, {atom, _, `insert`}},
+ [{atom, _, `contentious_table`},
+  {var, _, `'Objects'`}]}
+```
+---
+### ... and insert ...
+
+```erlang
+1> {ok, Tokens, _} =
+       erl_scan:string("collector ! {insert, self()}.").
+
+2> {ok, Forms} = erl_parse:parse_exprs(Tokens).
+
+3> Forms.
+[{op,1,'!',
+     {atom,1,collector},
+     {tuple,1,[{atom,1,insert},{call,1,{atom,1,self},[]}]}}]
+```
+---
+# Transform function!
+```erlang
+transform_ets_insert({call, Line,
+                       {remote, _, {atom, _, ets},
+                         {atom, _, insert}},
+                       [{atom, _, contentious_table},
+                         {var, _, Objects}]}
+                     = Form) ->
+    {op,Line,'!',
+      {atom,Line,collector},
+      {tuple,Line,[{atom,Line,insert},
+                   {call,Line,{atom,Line,self},[]}]}};
+transform_ets_insert(Form) ->
+    Form.
 
 ```
-]
+--
+... well, replace at least ...
 ---
-.left-column[
-  ### Find something
-  ### Alter it
-]
-.right-column[
-### Or add something before / after
-]
+class: middle, center, inverse
+# Lets take a step back
 ---
-.left-column[
-  ### Find something
-  ### Alter it
-  ### Add something
-]
-.right-column[
-]
----
-.left-column[
-  ### Find something
-  ### Alter it
-  ### Add something
-  ### Update the AST
-]
-.right-column[
-]
+# Common pattern
+
+1. Find some AST node, ie a function call
+
+2. Extract context / detail
+
+3. Modify the node / insert a new one
+
+4. Update the AST
+
+5. Return the new AST to the compiler
 ---
 ---
 # exprecs
+---
+# smerl (in erlyweb)
+---
+# Why _not_ parse transforms?
+
+- Your bug just became a compiler bug
+
+- Potential to create difficult-to-reason-about code
+
+- Slow down the compiler
+
 ---
 # Thanks
 

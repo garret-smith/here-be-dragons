@@ -548,8 +548,79 @@ transform_ets_insert(Form) ->
 --
 ... well, replace at least ...
 ---
+# Transform this
+```erlang
+change_username(UserId, UserName) when UserId =:= 0 ->
+  error("Can't change admin user name");
+change_username(UserId, UserName) ->
+  [User] = ets:lookup(contentious_table, UserId),
+  case User#user.group of
+    luser -> error("Insufficient privileges");
+    _ -> `ets:insert(contentious_table`, User#user{name = UserName})
+  end.
+```
+---
+.smaller[
+```erlang
+{function,13,change_username,2,
+    [{clause,13,
+        [{var,13,'UserId'},{var,13,'UserName'}],
+        [[{op,13,'=:=',{var,13,'UserId'},{integer,13,0}}]],
+        [{call,14,
+              {atom,14,error},
+              [{string,14,"Can't change admin user name"}]}]},
+    {clause,15,
+        [{var,15,'UserId'},{var,15,'UserName'}],
+        [],
+        [{match,16,
+              {cons,16,{var,16,'User'},{nil,16}},
+              {call,16,
+                  {remote,16,{atom,16,ets},{atom,16,lookup}},
+                  [{atom,16,contentious_table},{var,16,'UserId'}]}},
+          {case,17,
+              {record_field,17,{var,17,'User'},user,{atom,17,group}},
+              [{clause,18,
+                  [{atom,18,luser}],
+                  [],
+                  [{call,18,
+                        {atom,18,error},
+                        [{string,18, "Insufficient privileges"}]}]},
+              {clause,19,
+                  [{var,19,'_'}],
+                  [],
+                  [{call,19,
+                        {remote,19,{atom,19,`ets`},{atom,19,`insert`}},
+                        [{atom,19,`contentious_table`},
+                        {record,19,
+                            {var,19,'User'},
+                            user,
+                            [{record_field,19,
+                                  {atom,19,name},
+                                  {var,19,'UserName'}}]}]}]}]}]}]}
+```
+]
+---
 class: middle, center, inverse
 # Lets take a step back
+
+# &nbsp;
+
+![img/run-away.png](img/run-away.png)
+---
+# Isn't there something to help?
+
+## `stdlib`
+- epp - Erlang preprocessor (macros and includes)
+- erl_eval - Execute ASTs
+- erl_id_trans - An identity transform that walks the whole AST
+- erl_parse - Create the AST from tokens
+- erl_pp - Turn an AST back into source code
+- erl_scan - Create the tokens from text
+
+## `syntax_tools`
+- erl_prettypr - Another pretty-printer of ASTs
+- erl_syntax - Define a 'super-set' of the `stdlib` AST
+- erl_syntax_lib - Helper functions for working with ASTs
 ---
 # Common pattern
 
@@ -563,14 +634,53 @@ class: middle, center, inverse
 
 5. Return the new AST to the compiler
 ---
+## erl_syntax_lib
+```erlang
+map(Fun, Tree) -> NewTree.
+
+fold(Fun, Acc, Tree) -> NewAcc.
+```
+---
 class: middle, center, inverse
 # Working with Abstract Format
 ## Bring your sword to the dragon fight
+![img/sword-destiny.png](img/sword-destiny.png)
 ---
+# parse_trans
+
+[https://github.com/uwiger/parse_trans.git](https://github.com/uwiger/parse_trans.git)
+
+Many convenience functions for working with parse_transforms.
+---
+class: center, middle, inverse
+# Parse transforms in the wild
+---
+# aeon*
+## Another Erlang to Object Notation translator
+
+[https://github.com/garret-smith/aeon](https://github.com/garret-smith/aeon)
+
+Extract `-type()` information from a module, including `-record` definitions,
+and make it available at runtime.  Use this type information to drive
+conversion of JSON back and forth to Erlang records or `-type`s.
+
+.footnote[*I wrote it]
 ---
 # exprecs
+## part of the parse_trans project
+
+[https://github.com/uwiger/parse_trans.git](https://github.com/uwiger/parse_trans.git)
+
+Generate and export accessor functions for record fields.
 ---
-# smerl (in erlyweb)
+# lager (as in beer)
+
+[https://github.com/basho/lager.git](https://github.com/basho/lager.git)
+
+Logging!  The parse transform turns calls like `lager:info("message")` into
+`lager:dispatch_log(Where, info, {Line, }, "message", [], ...)` along with even
+more checking before making the call to see if the log level is even handled.
+
 ---
 # Why _not_ parse transforms?
 
@@ -579,7 +689,6 @@ class: middle, center, inverse
 - Potential to create difficult-to-reason-about code
 
 - Slow down the compiler
-
 ---
 # Thanks
 

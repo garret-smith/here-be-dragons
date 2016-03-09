@@ -482,9 +482,11 @@ begin to get an idea of what processes are using this table and how often.
 - Find: `ets:insert(contentious_table, Objects)`
 
 --
+
 - Insert: `ets_collector ! {insert, self()}`
 
 --
+
 - Bonus: `ets_collector ! {insert, length(Objects), self()}`
 
 ---
@@ -535,7 +537,7 @@ transform_ets_insert({call, Line,
                        {remote, _, {atom, _, ets},
                          {atom, _, insert}},
                        [{atom, _, contentious_table},
-                         {var, _, Objects}]}
+                         Objects]}
                      = Form) ->
     {op,Line,'!',
       {atom,Line,ets_collector},
@@ -546,57 +548,109 @@ transform_ets_insert(Form) ->
 
 ```
 --
-... well, replace at least ...
+... well, almost ...
+---
+### Turn this
+```erlang
+ets:insert(contentious_table, Objects),
+```
+--
+### Into this
+```erlang
+ets_collector ! {insert, self()},
+ets:insert(contentious_table, Objects),
+```
+### without changing the _shape_ of the parse tree.
+### replace a single node with a different single node (not a list)
+---
+### What about this?
+```erlang
+begin
+    ets_collector ! {insert, self()},
+    ets:insert(contentious_table, Objects)
+end,
+```
+--
+.checklist[
+- Single AST node
+]
+--
+.checklist[
+- Same expression value
+]
+---
+### Complete AST node transform 
+```erlang
+transform_ets_insert({call, Line,
+                       {remote, _, {atom, _, ets},
+                         {atom, _, insert}},
+                       [{atom, _, contentious_table}, Objects]}
+                     = Form) ->
+    {block, Line, [{op,Line,'!',
+                    {atom,Line,ets_collector},
+                    {tuple,Line,[{atom,Line,insert},
+                                {call,Line,{atom,Line,self},[]}]}},
+                   Form]};
+transform_ets_insert(Form) ->
+    Form.
+```
+--
+### Now to use it!
 ---
 # Transform this
 ```erlang
 change_username(UserId, UserName) when UserId =:= 0 ->
   error("Can't change admin user name");
 change_username(UserId, UserName) ->
-  [User] = ets:lookup(contentious_table, UserId),
+  Users = ets:lookup(contentious_table, UserId),
+  [User] = Users,
   case User#user.group of
-    luser -> error("Insufficient privileges");
-    _ -> `ets:insert(contentious_table`, User#user{name = UserName})
+    luser ->
+      error("Insufficient privileges");
+    G when G =:= user; G =:= admin ->
+      ets:insert(contentious_table, User#user{name = UserName})
   end.
 ```
 ---
 .smaller[
 ```erlang
-{function,13,change_username,2,
-    [{clause,13,
-        [{var,13,'UserId'},{var,13,'UserName'}],
-        [[{op,13,'=:=',{var,13,'UserId'},{integer,13,0}}]],
-        [{call,14,
-              {atom,14,error},
-              [{string,14,"Can't change admin user name"}]}]},
-    {clause,15,
-        [{var,15,'UserId'},{var,15,'UserName'}],
+{function,25,change_username,2,
+    [{clause,25,
+        [{var,25,'UserId'},{var,25,'UserName'}],
+        [[{op,25,'=:=',{var,25,'UserId'},{integer,25,0}}]],
+        [{call,26,
+              {atom,26,error},
+              [{string,26,"Can't change admin user name"}]}]},
+    {clause,27,
+        [{var,27,'UserId'},{var,27,'UserName'}],
         [],
-        [{match,16,
-              {cons,16,{var,16,'User'},{nil,16}},
-              {call,16,
-                  {remote,16,{atom,16,ets},{atom,16,lookup}},
-                  [{atom,16,contentious_table},{var,16,'UserId'}]}},
-          {case,17,
-              {record_field,17,{var,17,'User'},user,{atom,17,group}},
-              [{clause,18,
-                  [{atom,18,luser}],
+        [{match,28,
+              {var,28,'Users'},
+              {call,28,
+                  {remote,28,{atom,28,ets},{atom,28,lookup}},
+                  [{atom,28,contentious_table},{var,28,'UserId'}]}},
+          {match,29,{cons,29,{var,29,'User'},{nil,29}},{var,29,'Users'}},
+          {case,30,
+              {record_field,30,{var,30,'User'},user,{atom,30,group}},
+              [{clause,31,
+                  [{atom,31,luser}],
                   [],
-                  [{call,18,
-                        {atom,18,error},
-                        [{string,18, "Insufficient privileges"}]}]},
-              {clause,19,
-                  [{var,19,'_'}],
-                  [],
-                  [{call,19,
-                        {remote,19,{atom,19,`ets`},{atom,19,`insert`}},
-                        [{atom,19,`contentious_table`},
-                        {record,19,
-                            {var,19,'User'},
+                  [{call,32,
+                        {atom,32,error},
+                        [{string,32,"Insufficient privileges"}]}]},
+              {clause,33,
+                  [{var,33,'G'}],
+                  [[{op,33,'=:=',{var,33,'G'},{atom,33,user}}],
+                    [{op,33,'=:=',{var,33,'G'},{atom,33,admin}}]],
+                  [{call,34,
+                        {remote,34,{atom,34,`ets`},{atom,34,`insert`}},
+                        [{atom,34,`contentious_table`},
+                        {record,34,
+                            {var,34,'User'},
                             user,
-                            [{record_field,19,
-                                  {atom,19,name},
-                                  {var,19,'UserName'}}]}]}]}]}]}]}
+                            [{record_field,34,
+                                  {atom,34,name},
+                                  {var,34,'UserName'}}]}]}]}]}]}]}
 ```
 ]
 ---
@@ -607,15 +661,22 @@ class: middle, center, inverse
 
 ![img/run-away.png](img/run-away.png)
 ---
+class: middle, center, inverse
+# Working with Abstract Format
+## Bring your sword to the dragon fight
+![img/sword-destiny.png](img/sword-destiny.png)
+---
 # Isn't there something to help?
 
 ## `stdlib`
 - epp - Erlang preprocessor (macros and includes)
+- erl_scan - Turn text into tokens
+- erl_parse - Turn tokens into an AST
+- erl_pp - Turn an AST back into text (Pretty Print it)
 - erl_eval - Execute ASTs
-- erl_id_trans - An identity transform that walks the whole AST
-- erl_parse - Create the AST from tokens
-- erl_pp - Turn an AST back into source code
-- erl_scan - Create the tokens from text
+- erl_id_trans - Identity transform that walks the whole AST
+
+--
 
 ## `syntax_tools`
 - erl_prettypr - Another pretty-printer of ASTs
@@ -624,33 +685,134 @@ class: middle, center, inverse
 ---
 # Common pattern
 
-1. Find some AST node, ie a function call
+1. Find an AST node of interest, e.g., a function call
 
 2. Extract context / detail
 
-3. Modify the node / insert a new one
+3. Create a modified node
 
-4. Update the AST
+4. Replace the node with the modified one
 
-5. Return the new AST to the compiler
+5. Do this for all nodes
+
+6. Hand the new AST back to the compiler
 ---
 ## erl_syntax_lib
 ```erlang
-map(Fun, Tree) -> NewTree.
+map(Fun, AST) -> AST1.
 
-fold(Fun, Acc, Tree) -> NewAcc.
+map_fun(AstNode) -> AstNode1.
+```
+--
+```erlang
+fold(Fun, Acc, AST) -> Acc1.
+
+fold_fun(AstNode, Acc) -> Acc1.
+```
+--
+```erlang
+mapfold(Fun, Acc, AST) -> {AST1, Acc1}.
+
+mapfold_fun(Node, Acc) -> {Node1, Acc1}.
 ```
 ---
-class: middle, center, inverse
-# Working with Abstract Format
-## Bring your sword to the dragon fight
-![img/sword-destiny.png](img/sword-destiny.png)
+## Complete parse transform
+.small[
+```erlang
+parse_transform(Forms, _Options) ->
+    Forms1 = [erl_syntax_lib:map(
+                fun(Node) ->
+                    transform_ets_insert(
+                      erl_syntax:revert(Node))
+                end,
+                F)
+              || F <- Forms],
+    erl_syntax:revert_forms(Forms1).
+
+transform_ets_insert({call, Line,
+                       {remote, _, {atom, _, ets},
+                         {atom, _, insert}},
+                       [{atom, _, contentious_table}, _Objects]}
+                     = Form) ->
+    {block, Line, [{op,Line,'!',
+                    {atom,Line,ets_collector},
+                    {tuple,Line,[{atom,Line,insert},
+                                {call,Line,{atom,Line,self},[]}]}},
+                   Form]};
+transform_ets_insert(Form) ->
+    Form.
+```
+]
+---
+### A module is a list of trees (not a tree of trees)
+.small[
+```erlang
+parse_transform(Forms, _Options) ->
+    Forms1 = [erl_syntax_lib:map(
+                fun(Node) ->
+                    transform_ets_insert(
+                      erl_syntax:revert(Node))
+                end,
+                F)
+              || `F <- Forms`],
+    erl_syntax:revert_forms(Forms1).
+
+transform_ets_insert({call, Line,
+                       {remote, _, {atom, _, ets},
+                         {atom, _, insert}},
+                       [{atom, _, contentious_table}, _Objects]}
+                     = Form) ->
+    {block, Line, [{op,Line,'!',
+                    {atom,Line,ets_collector},
+                    {tuple,Line,[{atom,Line,insert},
+                                {call,Line,{atom,Line,self},[]}]}},
+                   Form]};
+transform_ets_insert(Form) ->
+    Form.
+```
+]
+---
+### `erl_syntax_lib` has a different AST
+.small[
+```erlang
+parse_transform(Forms, _Options) ->
+    Forms1 = [erl_syntax_lib:map(
+                fun(Node) ->
+                    transform_ets_insert(
+                      `erl_syntax:revert(Node)`)
+                end,
+                F)
+              || F <- Forms],
+    `erl_syntax:revert_forms(Forms1)`.
+
+transform_ets_insert({call, Line,
+                       {remote, _, {atom, _, ets},
+                         {atom, _, insert}},
+                       [{atom, _, contentious_table}, _Objects]}
+                     = Form) ->
+    {block, Line, [{op,Line,'!',
+                    {atom,Line,ets_collector},
+                    {tuple,Line,[{atom,Line,insert},
+                                {call,Line,{atom,Line,self},[]}]}},
+                   Form]};
+transform_ets_insert(Form) ->
+    Form.
+```
+]
 ---
 # parse_trans
 
 [https://github.com/uwiger/parse_trans.git](https://github.com/uwiger/parse_trans.git)
 
-Many convenience functions for working with parse_transforms.
+- Convenience functions for common cases.
+
+- Error handling for your transform (you will want this)
+
+- codegen: A parse transform for your parse transform.
+
+- Create new functions or entire modules from thin air.
+
+- exprecs: create record accessor & introspection functions.
 ---
 class: middle, center, inverse
 # Why _not_ parse transforms?
@@ -658,21 +820,50 @@ class: middle, center, inverse
 class: middle, center
 ## Your bug just became a compiler bug
 
-## Potential to create difficult-to-reason-about code
+--
+## Slows down the compiler
 
-## Slow down the compiler
+--
+## Code becomes difficult or impossible to reason about
 ---
 class: center, middle, inverse
 # Parse transforms in the wild
 ---
-# aeon*
-## Another Erlang to Object Notation translator
+## Another Erlang to Object Notation translator*
 
-[https://github.com/garret-smith/aeon](https://github.com/garret-smith/aeon)
+(aeon) [https://github.com/garret-smith/aeon](https://github.com/garret-smith/aeon)
 
-Extract `-type()` information from a module, including `-record` definitions,
-and make it available at runtime.  Use this type information to drive
-conversion of JSON back and forth to Erlang records or `-type`s.
+.smaller[
+```erlang
+-record(user, {
+          name :: binary(),
+          height :: float(),
+          birthday :: {Year :: integer(),
+                       Month :: integer(),
+                       Day :: integer()},
+          privileges :: [privilege()]
+         }).
+```
+```erlang
+User = #user{
+          name = <<"Garret Smith">>,
+          height = 6.0,
+          birthday = {1982, 06, 29},
+          privileges = [login, create, delete, grant]
+         },
+Json = jsx:encode(aeon:record_to_jsx(User, ?MODULE)),
+User1 = aeon:to_record(jsx:decode(Json), ?MODULE, user),
+*User = User1
+```
+```json
+{
+  "name":"Garret Smith",
+  "height":6.0,
+  "birthday":[1982,6,29],
+  "privileges":["login","create","delete","grant"]
+}
+```
+]
 
 .footnote[*I wrote it]
 ---

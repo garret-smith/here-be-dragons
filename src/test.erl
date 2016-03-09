@@ -1,8 +1,14 @@
 -module(test).
 
--compile([{parse_transform, my_transform}]).
+-compile([
+          {parse_transform, print_ast},
+          {parse_transform, ets_transform},
+          {parse_transform, print_ast}
+         ]).
 
 -export([hello/1]).
+
+-type point() :: {float(), float()}.
 
 -record(user, {
           id :: integer(),
@@ -28,7 +34,9 @@ change_username(UserId, UserName) ->
   Users = ets:lookup(contentious_table, UserId),
   [User] = Users,
   case User#user.group of
-    luser -> error("Insufficient privileges");
-    _ -> ets:insert(contentious_table, User#user{name = UserName})
+    luser ->
+      error("Insufficient privileges");
+    G when G =:= user; G =:= admin ->
+      ets:insert(contentious_table, User#user{name = UserName})
   end.
 

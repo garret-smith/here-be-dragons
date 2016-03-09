@@ -69,7 +69,7 @@ class: middle, center, inverse
 ---
 class: middle
 
-.float-left[
+.pull-left[
 Source
 
 &darr;
@@ -82,7 +82,7 @@ Executable
 
 ]
 
-.float-right[
+.pull-right[
 `module.erl`
 
 &darr;
@@ -98,7 +98,7 @@ Executable
 
 ---
 # Classic compilation steps
-.float-left[
+.pull-left[
 1. Expand macros
 2. Lex
 3. Parse
@@ -106,7 +106,7 @@ Executable
 5. Optimize
 6. Generate bytecode
 ]
-.float-right[
+.pull-right[
 ![Aho](img/aho.jpg)
 ]
 
@@ -652,6 +652,16 @@ class: middle, center, inverse
 
 Many convenience functions for working with parse_transforms.
 ---
+class: middle, center, inverse
+# Why _not_ parse transforms?
+---
+class: middle, center
+## Your bug just became a compiler bug
+
+## Potential to create difficult-to-reason-about code
+
+## Slow down the compiler
+---
 class: center, middle, inverse
 # Parse transforms in the wild
 ---
@@ -680,18 +690,8 @@ Generate and export accessor functions for record fields.
 Logging!  The parse transform turns calls like `lager:info("message")` into
 `lager:dispatch_log(Where, info, {Line, }, "message", [], ...)` along with even
 more checking before making the call to see if the log level is even handled.
-
----
-# Why _not_ parse transforms?
-
-- Your bug just became a compiler bug
-
-- Potential to create difficult-to-reason-about code
-
-- Slow down the compiler
 ---
 # Thanks
 
-[Map graphic](http://www.ruleofthedice.com/2011/02/steal-this-map.html)
-
-
+[Steal this map](http://www.ruleofthedice.com/2011/02/steal-this-map.html)
+[exprecs]

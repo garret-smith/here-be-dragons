@@ -6,29 +6,22 @@
 
 -export([parse_transform/2]).
 
-parse_transform(Forms, _Options) ->
-        AF = erl_syntax_lib:analyze_forms(Forms),
+parse_transform(Forms, Options) ->
+    {[InlineTransform], RemainingForms} =
+        lists:partition(
+          fun({function, _, inline_transform, 2, _}) -> true;
+             (_) -> false
+          end,
+          Forms),
+    TransformerExpressions = extract_exprs(InlineTransform),
 
-        TransformFunction = find_inline_transform(attributes(AF)),
-        Transformer = find_transformer_forms(Forms, TransformFunction),
-        io:fwrite("~p~n", [Transformer]),
-        Forms.
+    {value, Transformed, _Vars} =
+        erl_eval:exprs(TransformerExpressions,
+                       orddict:from_list([{'Forms', RemainingForms},
+                                          {'Options', Options}])),
+    erl_syntax:revert_forms(Transformed).
 
-attributes(AnalyzedForms) ->
-        {attributes, A} = lists:keyfind(attributes, 1, AnalyzedForms),
-        A.
-
-find_inline_transform(Attributes) ->
-        hd([F || {inline_transform, F} <- Attributes]).
-
-find_transformer_forms([Form | Forms], TransformFunctionName) ->
-        case erl_syntax:type(Form) of
-                function ->
-                        {Name, Arity} = erl_syntax_lib:analyze_function(Form),
-                        case Name == TransformFunctionName of
-                                true -> Form;
-                                false -> find_transformer_forms(Forms, TransformFunctionName)
-                        end;
-                _ -> find_transformer_forms(Forms, TransformFunctionName)
-        end.
+extract_exprs({function, _Line, _Name, _Arity, Clauses}) ->
+    {clause, _, _Args, _When, Exprs} = hd(Clauses),
+    Exprs.
 

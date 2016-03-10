@@ -800,31 +800,28 @@ transform_ets_insert(Form) ->
 ```
 ]
 ---
-# parse_trans
-
-[https://github.com/uwiger/parse_trans.git](https://github.com/uwiger/parse_trans.git)
-
-- Convenience functions for common cases.
-
-- Error handling for your transform (you will want this)
-
-- codegen: A parse transform for your parse transform.
-
-- Create new functions or entire modules from thin air.
-
-- exprecs: create record accessor & introspection functions.
----
 class: middle, center, inverse
 # Why _not_ parse transforms?
 ---
-class: middle, center
-## Your bug just became a compiler bug
+# Why _not_ parse transforms?
+
+- Quite complex - requires a deep understanding of the Erlang grammar
 
 --
-## Slows down the compiler
+
+- Abstract Format can change as the language evolves
 
 --
-## Code becomes difficult or impossible to reason about
+
+- Your bug just became a compiler bug
+
+--
+
+- Slows down compilation
+
+--
+
+- Code becomes difficult or impossible to reason about
 ---
 class: center, middle, inverse
 # Parse transforms in the wild
@@ -867,22 +864,125 @@ User1 = aeon:to_record(jsx:decode(Json), ?MODULE, user),
 
 .footnote[*I wrote it]
 ---
-# exprecs
-## part of the parse_trans project
+## aeon Parse Transform
+```erlang
+-include_lib("parse_trans/include/codegen.hrl").
+
+parse_transform(Forms, Options) ->
+	parse_trans:top(fun do_transform/2, Forms, Options).
+
+do_transform(Forms, Context) ->
+	F = erl_syntax_lib:analyze_forms(Forms),
+	case lists:keyfind(attributes, 1, F) of
+		false -> Forms;
+		{K, R} ->
+			Attr = lists:flatten([transform_attribute(A) || A<-R]),
+			Func = `codegen:gen_function`(
+						?FUN_NAME, fun() -> {'$var', Attr} end),
+			Forms2 = `parse_trans:do_insert_forms`(below, [Func],
+												  Forms, Context),
+			Forms3 = `parse_trans:export_function`(?FUN_NAME,
+												  0, Forms2),
+			parse_trans:revert(Forms3)
+	end.
+```
+---
+# parse_trans
 
 [https://github.com/uwiger/parse_trans.git](https://github.com/uwiger/parse_trans.git)
 
-Generate and export accessor functions for record fields.
+- Convenience functions for common cases.
+
+- Error handling for your transform (you will want this)
+
+- codegen: A parse transform for your parse transform.
+
+- Create new functions or entire modules from thin air.
+
+--
+
+- exprecs, generate and export accessor functions for record fields.
 ---
-# lager (as in beer)
+## lager (as in beer)
 
 [https://github.com/basho/lager.git](https://github.com/basho/lager.git)
 
-Logging!  The parse transform turns calls like `lager:info("message")` into
-`lager:dispatch_log(Where, info, {Line, }, "message", [], ...)` along with even
-more checking before making the call to see if the log level is even handled.
+Turn the log statement `lager:info("~s", ["hello"])` into:
+.small[
+```erlang
+case {whereis(lager_event), whereis(lager_event),
+      lager_config:get({lager_event, loglevel}, {0, []})}
+    of
+  {undefined, undefined, _} ->
+      fun () -> {error, lager_not_running} end();
+  {undefined, _, _} ->
+      fun () -> {error, {sink_not_configured, lager_event}}
+      end();
+  {__Pidlager_test6, _,
+   {__Levellager_test6, __Traceslager_test6}}
+      when __Levellager_test6 band 64 /= 0 orelse
+             __Traceslager_test6 /= [] ->
+      lager:do_log(info,
+                   [{module, lager_test}, {function, say_hello}, {line, 6},
+                    {pid, pid_to_list(self())}, {node, node()}
+                    | lager:md()],
+                   "~s", ["hello"], 4096, 64, __Levellager_test6,
+                   __Traceslager_test6, lager_event, __Pidlager_test6);
+  _ -> ok
+end
+```
+]
 ---
-# Thanks
+## PARE - PARallel Execution in Erlang
 
-[Steal this map](http://www.ruleofthedice.com/2011/02/steal-this-map.html)
-[exprecs]
+[http://chlorophil.blogspot.com/2007/11/pare-parallel-execution-in-erlang.html](http://chlorophil.blogspot.com/2007/11/pare-parallel-execution-in-erlang.html)
+
+Basic idea: embed atoms to automatically parallelize execution of sequential code.
+
+```erlang
+parallel_next_3,
+A = a(),
+b(),
+c(),
+```
+---
+## seqbind
+
+[https://github.com/spawngrid/seqbind](https://github.com/spawngrid/seqbind)
+
+```erlang
+V1 = foo(V),
+V2 = bar(V1),
+V3 = baz(V2)
+```
+
+```erlang
+V@ = foo(V),
+V@ = bar(V@),
+V@ = baz(V@)
+```
+---
+# Zen of parse transforms
+
+--
+
+- _raw speed_, where the time invested in optimization pays off because of widespread reuse (lager).
+
+--
+
+- Repetitive code generation, e.g. record access functions (exprecs).
+
+--
+
+- Make use of information lost during compilation, like types (aeon).
+
+--
+
+- Extend Erlang with new, custom semanics (seqbind).
+
+--
+
+- Experimentation with new language semantics.  Easier than writing a compiler (PARE).
+---
+class: center, middle, inverse
+# Thanks

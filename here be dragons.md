@@ -869,22 +869,22 @@ User1 = aeon:to_record(jsx:decode(Json), ?MODULE, user),
 -include_lib("parse_trans/include/codegen.hrl").
 
 parse_transform(Forms, Options) ->
-	parse_trans:top(fun do_transform/2, Forms, Options).
+    parse_trans:top(fun do_transform/2, Forms, Options).
 
 do_transform(Forms, Context) ->
-	F = erl_syntax_lib:analyze_forms(Forms),
-	case lists:keyfind(attributes, 1, F) of
-		false -> Forms;
-		{K, R} ->
-			Attr = lists:flatten([transform_attribute(A) || A<-R]),
-			Func = `codegen:gen_function`(
-						?FUN_NAME, fun() -> {'$var', Attr} end),
-			Forms2 = `parse_trans:do_insert_forms`(below, [Func],
-												  Forms, Context),
-			Forms3 = `parse_trans:export_function`(?FUN_NAME,
-												  0, Forms2),
-			parse_trans:revert(Forms3)
-	end.
+    F = erl_syntax_lib:analyze_forms(Forms),
+    case lists:keyfind(attributes, 1, F) of
+        false -> Forms;
+        {K, R} ->
+            Attr = lists:flatten([transform_attribute(A) || A<-R]),
+            Func = `codegen:gen_function`(
+                        ?FUN_NAME, fun() -> {'$var', Attr} end),
+            Forms2 = `parse_trans:do_insert_forms`(below, [Func],
+                                                  Forms, Context),
+            Forms3 = `parse_trans:export_function`(?FUN_NAME,
+                                                  0, Forms2),
+            parse_trans:revert(Forms3)
+    end.
 ```
 ---
 # parse_trans
@@ -1010,23 +1010,115 @@ extract_exprs({function, _Line, _Name, _Arity, Clauses}) ->
     Exprs.
 ```
 ---
+## pull the 'inline_transform' function out of the AST
+```erlang
+parse_transform(Forms, Options) ->
+*   {[InlineTransform], RemainingForms} =
+*       lists:partition(
+*         fun({function, _, inline_transform, 2, _}) -> true;
+*            (_) -> false
+*         end,
+*         Forms),
+    TransformerExpressions = extract_exprs(InlineTransform),
+
+    {value, Transformed, _Vars} =
+        erl_eval:exprs(TransformerExpressions,
+                       orddict:from_list([{'Forms', RemainingForms},
+                                          {'Options', Options}])),
+    erl_syntax:revert_forms(Transformed).
+
+extract_exprs({function, _Line, _Name, _Arity, Clauses}) ->
+    {clause, _, _Args, _When, Exprs} = hd(Clauses),
+    Exprs.
+```
+---
+## Extract the body of the transform
+```erlang
+parse_transform(Forms, Options) ->
+    {[InlineTransform], RemainingForms} =
+        lists:partition(
+          fun({function, _, inline_transform, 2, _}) -> true;
+             (_) -> false
+          end,
+          Forms),
+*   TransformerExpressions = extract_exprs(InlineTransform),
+
+    {value, Transformed, _Vars} =
+        erl_eval:exprs(TransformerExpressions,
+                       orddict:from_list([{'Forms', RemainingForms},
+                                          {'Options', Options}])),
+    erl_syntax:revert_forms(Transformed).
+
+*extract_exprs({function, _Line, _Name, _Arity, Clauses}) ->
+*   {clause, _, _Args, _When, Exprs} = hd(Clauses),
+*   Exprs.
+```
+---
+## eval the body against the remaining AST Forms
+```erlang
+parse_transform(Forms, Options) ->
+    {[InlineTransform], RemainingForms} =
+        lists:partition(
+          fun({function, _, inline_transform, 2, _}) -> true;
+             (_) -> false
+          end,
+          Forms),
+    TransformerExpressions = extract_exprs(InlineTransform),
+
+*   {value, Transformed, _Vars} =
+*       erl_eval:exprs(TransformerExpressions,
+*                      orddict:from_list([{'Forms', RemainingForms},
+*                                         {'Options', Options}])),
+    erl_syntax:revert_forms(Transformed).
+
+extract_exprs({function, _Line, _Name, _Arity, Clauses}) ->
+    {clause, _, _Args, _When, Exprs} = hd(Clauses),
+    Exprs.
+```
+---
 ## ETS collector as inline transform
 ```erlang
 inline_transform(Forms, Options) ->
     [erl_syntax_lib:map(
        fun(Node) ->
                case erl_syntax:revert(Node) of
-                   {call, Line,
-                    {remote, _, {atom, _, ets}, {atom, _, insert}},
+                   {call, Line, {remote, _,
+                                 {atom, _, ets},
+                                 {atom, _, insert}},
                     [{atom, _, contentious_table},
-					 _Objects]} = Form ->
+                     _Objects]} = Form ->
                        {block, Line,
                         [{op,Line,'!',
                           {atom,Line,ets_collector},
                           {tuple,Line,[{atom,Line,insert},
                                        {call,Line,
-									    {atom,Line,self},[]}]}},
+                                        {atom,Line,self},[]}]}},
                                       Form]};
+                   Form -> Form
+               end
+       end,
+       F)
+     || F <- Forms].
+```
+---
+## All inline - no sub-functions
+```erlang
+inline_transform(Forms, Options) ->
+    [erl_syntax_lib:map(
+       fun(Node) ->
+               case erl_syntax:revert(Node) of
+*                  {call, Line, {remote, _,
+*                                {atom, _, ets},
+*                                {atom, _, insert}},
+*                   [{atom, _, contentious_table},
+*                    _Objects]} = Form ->
+*                      {block, Line,
+*                       [{op,Line,'!',
+*                         {atom,Line,ets_collector},
+*                         {tuple,Line,[{atom,Line,insert},
+*                                      {call,Line,
+*                                       {atom,Line,self},[]}]}},
+*                                     Form]};
                    Form -> Form
                end
        end,

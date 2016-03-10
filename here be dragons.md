@@ -983,6 +983,56 @@ V@ = baz(V@)
 --
 
 - Experimentation with new language semantics.  Easier than writing a compiler (PARE).
+
+--
+
+- Metaprogramming is it's own reward (inline transform)!
+---
+## A parse transform enabling inline module transforms!
+```erlang
+parse_transform(Forms, Options) ->
+    {[InlineTransform], RemainingForms} =
+        lists:partition(
+          fun({function, _, inline_transform, 2, _}) -> true;
+             (_) -> false
+          end,
+          Forms),
+    TransformerExpressions = extract_exprs(InlineTransform),
+
+    {value, Transformed, _Vars} =
+        erl_eval:exprs(TransformerExpressions,
+                       orddict:from_list([{'Forms', RemainingForms},
+                                          {'Options', Options}])),
+    erl_syntax:revert_forms(Transformed).
+
+extract_exprs({function, _Line, _Name, _Arity, Clauses}) ->
+    {clause, _, _Args, _When, Exprs} = hd(Clauses),
+    Exprs.
+```
+---
+## ETS collector as inline transform
+```erlang
+inline_transform(Forms, Options) ->
+    [erl_syntax_lib:map(
+       fun(Node) ->
+               case erl_syntax:revert(Node) of
+                   {call, Line,
+                    {remote, _, {atom, _, ets}, {atom, _, insert}},
+                    [{atom, _, contentious_table},
+					 _Objects]} = Form ->
+                       {block, Line,
+                        [{op,Line,'!',
+                          {atom,Line,ets_collector},
+                          {tuple,Line,[{atom,Line,insert},
+                                       {call,Line,
+									    {atom,Line,self},[]}]}},
+                                      Form]};
+                   Form -> Form
+               end
+       end,
+       F)
+     || F <- Forms].
+```
 ---
 class: center, middle, inverse
 # Thanks
